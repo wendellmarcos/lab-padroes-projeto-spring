@@ -1,0 +1,52 @@
+# CI do lab-padroes-projeto-spring (Spring Boot) no Forgejo do dell-srv.
+# O repositório não tinha CI ativo no GitHub; este é o primeiro, no runner do dell-srv.
+#
+# - checkout com git: o actions/checkout perde o subcaminho /forgejo/ do Forgejo do dell-srv.
+#   Cada job roda numa rede docker própria; o Forgejo é http://forgejo:3030
+#   (--add-host=forgejo:host-gateway no runner);
+# - JDK 17 da imagem eclipse-temurin; `./mvnw verify` (compila e roda os testes).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  maven:
+    name: Maven verify
+    runs-on: docker
+    container:
+      image: eclipse-temurin:17-jdk
+    timeout-minutes: 30
+    steps:
+      - name: Ferramentas do sistema
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends git ca-certificates >/dev/null
+      - name: Checkout
+        env:
+          TOKEN: ${{ github.token }}
+          SERVER: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+        run: |
+          git init -q .
+          git remote add origin "${SERVER%/}/${REPO}.git"
+          for base in http://forgejo:3030 http://forgejo:3000 "${SERVER%/}"; do
+            git -c "http.extraHeader=Authorization: token ${TOKEN}" fetch -q --depth 50 "$base/${REPO}.git" "$REF" 2>/dev/null && break
+          done
+          git checkout -q "$SHA"
+
+      - name: Build e testes (Maven Wrapper)
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -ntp verify
