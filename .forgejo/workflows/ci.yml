@@ -4,7 +4,7 @@
 # - checkout com git: o actions/checkout perde o subcaminho /forgejo/ do Forgejo do dell-srv.
 #   Cada job roda numa rede docker própria; o Forgejo é http://forgejo:3030
 #   (--add-host=forgejo:host-gateway no runner);
-# - JDK 17 da imagem eclipse-temurin; `./mvnw verify` (compila e roda os testes).
+# - JDK 17 e Maven 3.9 da imagem maven (o wrapper do repositório está sem o jar); `mvn verify`.
 
 name: CI
 
@@ -23,7 +23,7 @@ jobs:
     name: Maven verify
     runs-on: docker
     container:
-      image: eclipse-temurin:17-jdk
+      image: maven:3.9-eclipse-temurin-17
     timeout-minutes: 30
     steps:
       - name: Ferramentas do sistema
@@ -46,7 +46,6 @@ jobs:
           done
           git checkout -q "$SHA"
 
-      - name: Build e testes (Maven Wrapper)
-        run: |
-          chmod +x mvnw
-          ./mvnw -B -ntp verify
+      # O Maven Wrapper do repositório não tem .mvn/wrapper/maven-wrapper.jar: usa o Maven da imagem.
+      - name: Build e testes (Maven)
+        run: mvn -B -ntp verify
